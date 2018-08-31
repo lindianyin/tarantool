@@ -1217,21 +1217,21 @@ void tarantoolSqlite3LoadSchema(struct init_data *init)
 	sql_init_callback(init, TARANTOOL_SYS_SQL_STAT1_NAME,
 			  BOX_SQL_STAT1_ID, 0,
 			  "CREATE TABLE \""TARANTOOL_SYS_SQL_STAT1_NAME
-			       "\"(\"tbl\" text,"
-			       "\"idx\" text,"
+			       "\"(\"space_id\" INT,"
+			       "\"index_id\" INT,"
 			       "\"stat\" not null,"
-			       "PRIMARY KEY(\"tbl\", \"idx\"))");
+			       "PRIMARY KEY(\"space_id\", \"index_id\"))");
 
 	sql_init_callback(init, TARANTOOL_SYS_SQL_STAT4_NAME,
 			  BOX_SQL_STAT4_ID, 0,
 			  "CREATE TABLE \""TARANTOOL_SYS_SQL_STAT4_NAME
-			       "\"(\"tbl\" text,"
-			       "\"idx\" text,"
+			       "\"(\"space_id\" INT,"
+			       "\"index_id\" INT,"
 			       "\"neq\" text,"
 			       "\"nlt\" text,"
 			       "\"ndlt\" text,"
 			       "\"sample\","
-			       "PRIMARY KEY(\"tbl\", \"idx\", \"sample\"))");
+			       "PRIMARY KEY(\"space_id\", \"index_id\", \"sample\"))");
 
 	sql_init_callback(init, TARANTOOL_SYS_FK_CONSTRAINT_NAME,
 			  BOX_FK_CONSTRAINT_ID, 0,
