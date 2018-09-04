@@ -65,6 +65,17 @@ struct vy_worker_pool {
 	struct vy_worker *workers;
 	/** List of workers that are currently idle. */
 	struct stailq idle_workers;
+	/**
+	 * How much time worker threads were idle, relative to
+	 * the total time (0 <= @idle_ratio <= 1).
+	 *
+	 * Updated on memory dump completion.
+	 */
+	double idle_ratio;
+	/** Time of the last @idle_ratio update. */
+	double last_idle_update;
+	/** Total idle time at @last_idle_update. */
+	double last_idle_time;
 };
 
 struct vy_scheduler {

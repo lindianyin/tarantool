@@ -302,15 +302,20 @@ static void
 vy_info_append_disk(struct vy_env *env, struct info_handler *h)
 {
 	struct vy_lsm_env *lsm_env = &env->lsm_env;
+	struct vy_scheduler *scheduler = &env->scheduler;
 
 	info_table_begin(h, "disk");
 	info_append_int(h, "data_files", lsm_env->data_file_count);
 	info_append_int(h, "data_size", lsm_env->disk_data_size);
 	info_append_int(h, "index_size", lsm_env->disk_index_size);
 	info_append_int(h, "dump_total", lsm_env->dump_total);
+	info_append_double(h, "dump_idle_ratio",
+			   scheduler->dump_pool.idle_ratio);
 	info_append_int(h, "compact_total", lsm_env->compact_total);
 	info_append_int(h, "compact_queue", lsm_env->compact_queue);
 	info_append_int(h, "compact_debt", lsm_env->compact_debt);
+	info_append_double(h, "compact_idle_ratio",
+			   scheduler->compact_pool.idle_ratio);
 	info_table_end(h);
 }
 

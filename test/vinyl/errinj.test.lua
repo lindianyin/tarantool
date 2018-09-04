@@ -884,3 +884,40 @@ i:stat().disk.compact.debt -- none
 i:stat().disk.compact.queue.bytes == box.stat.vinyl().disk.compact_queue
 i:stat().disk.compact.debt.bytes == box.stat.vinyl().disk.compact_debt
 s:drop()
+
+--
+-- Check idle_ratio metric.
+--
+dump_threads = math.max(1, math.ceil(box.cfg.vinyl_write_threads / 4))
+compact_threads = box.cfg.vinyl_write_threads - dump_threads
+
+s = box.schema.space.create('test', {engine = 'vinyl'})
+i = s:create_index('pk', {run_count_per_level = 2})
+function dump() for i = 1, 10 do s:replace{i} end box.snapshot() end
+
+dump()
+fiber.sleep(0.1)
+errinj.set('ERRINJ_VY_RUN_WRITE_TIMEOUT', 0.1)
+dump()
+errinj.set('ERRINJ_VY_RUN_WRITE_TIMEOUT', 0)
+
+-- one dump thread was busy half of the time
+idle = box.stat.vinyl().disk.dump_idle_ratio
+expected = 1 - 1 / (2 * dump_threads)
+math.abs(idle - expected) < 0.1 or idle
+
+-- all compaction threads were idle
+box.stat.vinyl().disk.compact_idle_ratio -- 1
+
+errinj.set('ERRINJ_VY_COMPACTION_DELAY', true)
+dump()
+dump()
+errinj.set('ERRINJ_VY_COMPACTION_DELAY', false)
+
+-- one compaction thread was busy all the time
+idle = box.stat.vinyl().disk.compact_idle_ratio
+expected = 1 - 1 / compact_threads
+math.abs(idle - expected) < 0.1 or idle
+
+while i:stat().disk.compact.count < 1 do fiber.sleep(0.01) end
+s:drop()

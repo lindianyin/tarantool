@@ -102,6 +102,8 @@ function gstat()
     st.quota.use_rate = nil
     st.quota.dump_bandwidth = nil
     st.quota.watermark = nil
+    st.disk.dump_idle_ratio = nil
+    st.disk.compact_idle_ratio = nil
     return st
 end;
 ---
@@ -218,12 +220,12 @@ gstat()
 ---
 - disk:
     dump_total: 0
-    data_size: 0
-    compact_debt: 0
-    compact_queue: 0
-    data_files: 0
-    compact_total: 0
     index_size: 0
+    compact_debt: 0
+    data_files: 0
+    compact_queue: 0
+    data_size: 0
+    compact_total: 0
   quota:
     limit: 134217728
     used: 0
@@ -1039,12 +1041,12 @@ gstat()
 ---
 - disk:
     dump_total: 0
-    data_size: 104300
-    compact_debt: 0
-    compact_queue: 0
-    data_files: 2
-    compact_total: 0
     index_size: 1190
+    compact_debt: 0
+    data_files: 2
+    compact_queue: 0
+    data_size: 104300
+    compact_total: 0
   quota:
     limit: 134217728
     used: 262583

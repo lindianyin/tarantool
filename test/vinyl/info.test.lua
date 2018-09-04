@@ -84,6 +84,8 @@ function gstat()
     st.quota.use_rate = nil
     st.quota.dump_bandwidth = nil
     st.quota.watermark = nil
+    st.disk.dump_idle_ratio = nil
+    st.disk.compact_idle_ratio = nil
     return st
 end;
 

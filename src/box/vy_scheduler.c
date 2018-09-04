@@ -97,6 +97,10 @@ struct vy_worker {
 	struct vy_task *task;
 	/** Link in vy_worker_pool::idle_workers. */
 	struct stailq_entry in_idle;
+	/** Time when this worker became idle. */
+	double idle_start;
+	/** How much time this worker have been idle. */
+	double idle_time;
 	/** Route for sending deferred DELETEs back to tx. */
 	struct cmsg_hop deferred_delete_route[2];
 };
@@ -355,6 +359,13 @@ vy_worker_pool_start(struct vy_worker_pool *pool)
 		cpipe_create(&worker->worker_pipe, name);
 		stailq_add_tail_entry(&pool->idle_workers, worker, in_idle);
 
+		/*
+		 * Distribute accumulated idle time amongst workers
+		 * as if they were running all the time.
+		 */
+		worker->idle_start = pool->last_idle_update;
+		worker->idle_time = pool->last_idle_time / pool->size;
+
 		struct cmsg_hop *route = worker->deferred_delete_route;
 		route[0].f = vy_deferred_delete_batch_process_f;
 		route[0].pipe = &worker->worker_pipe;
@@ -384,6 +395,9 @@ vy_worker_pool_create(struct vy_worker_pool *pool, const char *name, int size)
 	pool->size = size;
 	pool->workers = NULL;
 	stailq_create(&pool->idle_workers);
+	pool->idle_ratio = 1;
+	pool->last_idle_time = 0;
+	pool->last_idle_update = ev_monotonic_now(loop());
 }
 
 static void
@@ -412,6 +426,8 @@ vy_worker_pool_get(struct vy_worker_pool *pool)
 		worker = stailq_shift_entry(&pool->idle_workers,
 					    struct vy_worker, in_idle);
 		assert(worker->pool == pool);
+		worker->idle_time += ev_monotonic_now(loop()) -
+						worker->idle_start;
 	}
 	return worker;
 }
@@ -425,6 +441,51 @@ vy_worker_pool_put(struct vy_worker *worker)
 {
 	struct vy_worker_pool *pool = worker->pool;
 	stailq_add_entry(&pool->idle_workers, worker, in_idle);
+	worker->idle_start = ev_monotonic_now(loop());
+}
+
+/**
+ * Return total time workers have spent idle.
+ */
+static double
+vy_worker_pool_idle_time(struct vy_worker_pool *pool)
+{
+	double now = ev_monotonic_now(loop());
+
+	if (pool->workers == NULL) {
+		/*
+		 * Workers haven't been started yet so naturally
+		 * they all should be accounted as idle.
+		 */
+		return pool->last_idle_time +
+			(now - pool->last_idle_update) * pool->size;
+	}
+
+	double idle_time = 0;
+	struct vy_worker *worker;
+	for (int i = 0; i < pool->size; i++) {
+		worker = &pool->workers[i];
+		idle_time += worker->idle_time;
+	}
+
+	stailq_foreach_entry(worker, &pool->idle_workers, in_idle)
+		idle_time += now - worker->idle_start;
+
+	return idle_time;
+}
+
+/**
+ * Update idle ratio of a worker pool.
+ */
+static void
+vy_worker_pool_update_idle_ratio(struct vy_worker_pool *pool)
+{
+	double now = ev_monotonic_now(loop());
+	double idle_time = vy_worker_pool_idle_time(pool);
+	pool->idle_ratio = (idle_time - pool->last_idle_time) /
+			   (now - pool->last_idle_update) / pool->size;
+	pool->last_idle_time = idle_time;
+	pool->last_idle_update = now;
 }
 
 void
@@ -657,6 +718,9 @@ vy_scheduler_complete_dump(struct vy_scheduler *scheduler)
 	scheduler->dump_complete_cb(scheduler,
 			min_generation - 1, dump_duration);
 	fiber_cond_signal(&scheduler->dump_cond);
+
+	vy_worker_pool_update_idle_ratio(&scheduler->dump_pool);
+	vy_worker_pool_update_idle_ratio(&scheduler->compact_pool);
 }
 
 int
